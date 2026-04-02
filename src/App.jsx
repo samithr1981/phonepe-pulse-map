@@ -4,7 +4,7 @@ import { scaleQuantile } from "d3-scale";
 
 // ── Data source: PhonePe Pulse official GitHub repo ──────────────────────────
 const GITHUB_BASE = "https://raw.githubusercontent.com/PhonePe/pulse/master/data";
-const corsUrl = (path) => `https://api.allorigins.win/raw?url=${encodeURIComponent(GITHUB_BASE + path)}`;
+const corsUrl = (path) => `/api/pulse?path=${encodeURIComponent(path.replace(/^\//, ""))}`;
 const INDIA_GEO  = "https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/india.geojson";
 
 // ── State slug map for district drill-down ───────────────────────────────────

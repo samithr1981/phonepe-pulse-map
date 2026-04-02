@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
 import { scaleQuantile } from "d3-scale";
 
-const DATA = "/pulse-data";
-const INDIA_GEO = "/india-states.json";
+// ── Data source: PhonePe Pulse official GitHub repo ──────────────────────────
+const GITHUB_RAW = "https://api.allorigins.win/raw?url=https://raw.githubusercontent.com/PhonePe/pulse/master/data";
+const INDIA_GEO  = "https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/india.geojson";
 
-// pulse-master state slug map (for district API path)
+// ── State slug map for district drill-down ───────────────────────────────────
 const STATE_SLUG = {
   "andaman & nicobar islands": "andaman-&-nicobar-islands",
   "andhra pradesh": "andhra-pradesh",
@@ -16,21 +17,25 @@ const STATE_SLUG = {
   "delhi": "delhi", "goa": "goa", "gujarat": "gujarat", "haryana": "haryana",
   "himachal pradesh": "himachal-pradesh", "jammu & kashmir": "jammu-&-kashmir",
   "jharkhand": "jharkhand", "karnataka": "karnataka", "kerala": "kerala",
-  "ladakh": "ladakh", "lakshadweep": "lakshadweep", "madhya pradesh": "madhya-pradesh",
-  "maharashtra": "maharashtra", "manipur": "manipur", "meghalaya": "meghalaya",
-  "mizoram": "mizoram", "nagaland": "nagaland", "odisha": "odisha",
-  "puducherry": "puducherry", "punjab": "punjab", "rajasthan": "rajasthan",
-  "sikkim": "sikkim", "tamil nadu": "tamil-nadu", "telangana": "telangana",
-  "tripura": "tripura", "uttar pradesh": "uttar-pradesh",
-  "uttarakhand": "uttarakhand", "west bengal": "west-bengal",
+  "ladakh": "ladakh", "lakshadweep": "lakshadweep",
+  "madhya pradesh": "madhya-pradesh", "maharashtra": "maharashtra",
+  "manipur": "manipur", "meghalaya": "meghalaya", "mizoram": "mizoram",
+  "nagaland": "nagaland", "odisha": "odisha", "puducherry": "puducherry",
+  "punjab": "punjab", "rajasthan": "rajasthan", "sikkim": "sikkim",
+  "tamil nadu": "tamil-nadu", "telangana": "telangana", "tripura": "tripura",
+  "uttar pradesh": "uttar-pradesh", "uttarakhand": "uttarakhand",
+  "west bengal": "west-bengal",
 };
 
-const YEARS = ["2018","2019","2020","2021","2022","2023","2024"];
+const YEARS    = ["2018","2019","2020","2021","2022","2023","2024"];
 const QUARTERS = [
   { v:"1", l:"Q1 · Jan–Mar" }, { v:"2", l:"Q2 · Apr–Jun" },
   { v:"3", l:"Q3 · Jul–Sep" }, { v:"4", l:"Q4 · Oct–Dec" },
 ];
-const COLOR_RAMP = ["#1e3a5f","#1e4d8c","#1a65b5","#1976d2","#ff9800","#f57c00","#e65100","#bf360c"];
+const COLOR_RAMP = [
+  "#1e3a5f","#1e4d8c","#1a65b5","#1976d2",
+  "#ff9800","#f57c00","#e65100","#bf360c",
+];
 
 function fmtCr(n) {
   if (!n) return "—";
@@ -69,8 +74,9 @@ export default function App() {
   const fetchState = useCallback(async (y, q) => {
     setLoading(true); setError(null); setSelected(null); setDistData(null);
     try {
-      const res  = await fetch(`${DATA}/map/transaction/hover/country/india/${y}/${q}.json`);
-      if (!res.ok) throw new Error(`Not found: ${y}/Q${q}`);
+      const url = `${GITHUB_RAW}/map/transaction/hover/country/india/${y}/${q}.json`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Data not available for ${y} Q${q}`);
       const json = await res.json();
       const map  = {};
       (json?.data?.hoverDataList || []).forEach(item => {
@@ -80,10 +86,9 @@ export default function App() {
                       avg: m.count ? (m.amount||0)/m.count : 0 };
       });
       setStateData(map);
-      const arr   = Object.values(map);
-      const totC  = arr.reduce((s,v)=>s+v.count,0);
-      const totA  = arr.reduce((s,v)=>s+v.amount,0);
-      setTotals({ count:totC, amount:totA });
+      const arr  = Object.values(map);
+      setTotals({ count:arr.reduce((s,v)=>s+v.count,0),
+                  amount:arr.reduce((s,v)=>s+v.amount,0) });
       setTopStates([...arr].sort((a,b)=>b.count-a.count).slice(0,7));
     } catch(e) { setError(e.message); }
     finally    { setLoading(false); }
@@ -93,16 +98,19 @@ export default function App() {
     const slug = STATE_SLUG[pulse]; if (!slug) return;
     setDistLoading(true);
     try {
-      const res  = await fetch(`${DATA}/map/transaction/hover/country/india/state/${slug}/${y}/${q}.json`);
+      const url = `${GITHUB_RAW}/map/transaction/hover/country/india/state/${slug}/${y}/${q}.json`;
+      const res = await fetch(url);
       if (!res.ok) { setDistData(null); return; }
       const json = await res.json();
-      const arr  = (json?.data?.hoverDataList || []).map(item => ({
-        name:   item.name,
-        count:  item.metric?.[0]?.count  || 0,
-        amount: item.metric?.[0]?.amount || 0,
-        avg:    item.metric?.[0]?.count ? (item.metric[0].amount||0)/item.metric[0].count : 0,
-      })).sort((a,b)=>b.count-a.count);
-      setDistData(arr);
+      setDistData(
+        (json?.data?.hoverDataList || []).map(item => ({
+          name:   item.name,
+          count:  item.metric?.[0]?.count  || 0,
+          amount: item.metric?.[0]?.amount || 0,
+          avg:    item.metric?.[0]?.count
+                    ? (item.metric[0].amount||0)/item.metric[0].count : 0,
+        })).sort((a,b)=>b.count-a.count)
+      );
     } catch { setDistData(null); }
     finally  { setDistLoading(false); }
   }, []);
@@ -143,7 +151,7 @@ export default function App() {
           <div>
             <div style={{ fontWeight:700, fontSize:15 }}>PhonePe Pulse</div>
             <div style={{ fontSize:11, color:"#64748b" }}>
-              Local data · {year} Q{quarter} · {Object.keys(stateData).length} states
+              Live GitHub data · {year} Q{quarter} · {Object.keys(stateData).length} states
             </div>
           </div>
         </div>
@@ -173,7 +181,7 @@ export default function App() {
               <div style={{ textAlign:"center" }}>
                 <div style={spinCss}/>
                 <div style={{ fontSize:12, color:"#94a3b8", marginTop:10 }}>
-                  {loading?"Reading local data…":`Loading districts…`}
+                  {loading ? "Fetching from GitHub…" : "Loading districts…"}
                 </div>
               </div>
             </div>
@@ -187,8 +195,7 @@ export default function App() {
             </div>
           )}
 
-          <ComposableMap
-            projection="geoMercator"
+          <ComposableMap projection="geoMercator"
             projectionConfig={{ scale:1000, center:[82,22] }}
             width={800} height={600}
             style={{ width:"100%", height:"100%", background:"#0a0f1e" }}>
@@ -216,15 +223,16 @@ export default function App() {
             </ZoomableGroup>
           </ComposableMap>
 
-          {/* Zoom */}
+          {/* Zoom controls */}
           <div style={{ position:"absolute", bottom:60, left:16,
                         display:"flex", flexDirection:"column", gap:4 }}>
             {[["＋",1.5],["－",1/1.5],["⊙","reset"]].map(([lbl,f])=>(
               <button key={lbl} onClick={()=>{
                 if(f==="reset"){setZoom(1);setCenter([82,23]);}
                 else setZoom(z=>Math.min(Math.max(z*f,1),16));
-              }} style={{ width:30,height:30,background:"#1e293b",border:"1px solid #334155",
-                          color:"#e2e8f0",borderRadius:6,cursor:"pointer",fontSize:16,
+              }} style={{ width:30,height:30,background:"#1e293b",
+                          border:"1px solid #334155",color:"#e2e8f0",
+                          borderRadius:6,cursor:"pointer",fontSize:16,
                           display:"flex",alignItems:"center",justifyContent:"center" }}>
                 {lbl}
               </button>
@@ -267,7 +275,8 @@ export default function App() {
                   <TR label="Total amount"  val={fmtCr(d.amount)}/>
                   <TR label="Avg ticket"    val={fmtCr(d.avg)}/>
                   {totals.count>0 && (
-                    <div style={{ marginTop:6,paddingTop:6,borderTop:"1px solid #334155",
+                    <div style={{ marginTop:6,paddingTop:6,
+                                  borderTop:"1px solid #334155",
                                   fontSize:10,color:"#94a3b8" }}>
                       {((d.count/totals.count)*100).toFixed(1)}% of India · click to drill down
                     </div>
@@ -279,26 +288,29 @@ export default function App() {
         </div>
 
         {/* Sidebar */}
-        <div style={{ width:280, background:"#0f172a", borderLeft:"1px solid #1e293b",
-                      display:"flex", flexDirection:"column", overflow:"hidden", flexShrink:0 }}>
+        <div style={{ width:280, background:"#0f172a",
+                      borderLeft:"1px solid #1e293b",
+                      display:"flex", flexDirection:"column",
+                      overflow:"hidden", flexShrink:0 }}>
           <div style={{ padding:"12px 14px", borderBottom:"1px solid #1e293b" }}>
             <KPI label="Total transactions" val={fmtN(totals.count)}/>
             <KPI label="Total value"        val={fmtCr(totals.amount)} mt/>
             <KPI label="National avg ticket"
               val={totals.count?fmtCr(totals.amount/totals.count):"—"} mt/>
           </div>
+
           <div style={{ flex:1, overflowY:"auto", padding:"12px 14px" }}>
             {selectedState ? (<>
               <div style={{ fontSize:11,fontWeight:700,color:"#94a3b8",
                             textTransform:"uppercase",letterSpacing:"0.06em",
-                            marginBottom:10,textTransform:"capitalize" }}>
+                            marginBottom:10 }}>
                 Districts · {selectedState}
               </div>
               {distLoading && <div style={{ fontSize:12,color:"#64748b" }}>Loading…</div>}
               {!distLoading && !districtData && (
                 <div style={{ fontSize:12,color:"#64748b" }}>District data not available.</div>
               )}
-              {districtData && districtData.map((d,i)=>(
+              {districtData?.map((d,i)=>(
                 <BarRow key={d.name} rank={i+1} name={d.name}
                   val={metric==="count"?fmtN(d.count):metric==="amount"?fmtCr(d.amount):fmtCr(d.avg)}
                   sub={`${fmtN(d.count)} txns`}
@@ -322,10 +334,16 @@ export default function App() {
               })}
             </>)}
           </div>
-          <div style={{ padding:"10px 14px",borderTop:"1px solid #1e293b",
-                        fontSize:10,color:"#334155" }}>
-            Source: ~/Downloads/pulse-master<br/>
-            data/map/transaction/hover/…/{year}/{quarter}.json
+
+          <div style={{ padding:"10px 14px", borderTop:"1px solid #1e293b",
+                        fontSize:10, color:"#334155" }}>
+            Data: github.com/PhonePe/pulse<br/>
+            Map: github.com/udit-001/india-maps-data<br/>
+            <a href="https://github.com/samithr1981/phonepe-pulse-map"
+              target="_blank" rel="noopener noreferrer"
+              style={{ color:"#6366f1", marginTop:4, display:"block" }}>
+              View source ↗
+            </a>
           </div>
         </div>
       </div>
@@ -335,6 +353,7 @@ export default function App() {
 
 const selSt = { background:"#1e293b",color:"#e2e8f0",border:"1px solid #334155",
                 borderRadius:7,padding:"5px 10px",fontSize:12 };
+
 function Sel({value,onChange,opts}) {
   return (
     <select value={value} onChange={e=>onChange(e.target.value)} style={selSt}>
@@ -366,7 +385,8 @@ function BarRow({rank,name,val,sub,pct,color,onClick}) {
                padding:"4px 6px",borderRadius:6 }}
       onMouseEnter={e=>{if(onClick)e.currentTarget.style.background="#1e293b";}}
       onMouseLeave={e=>{if(onClick)e.currentTarget.style.background="transparent";}}>
-      <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3 }}>
+      <div style={{ display:"flex",justifyContent:"space-between",
+                    fontSize:12,marginBottom:3 }}>
         <span style={{ color:"#e2e8f0",textTransform:"capitalize" }}>
           <span style={{ color,marginRight:5,fontWeight:700 }}>{rank}</span>{name}
         </span>

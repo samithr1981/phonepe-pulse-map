@@ -3,7 +3,8 @@ import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simp
 import { scaleQuantile } from "d3-scale";
 
 // ── Data source: PhonePe Pulse official GitHub repo ──────────────────────────
-const GITHUB_RAW = "https://api.allorigins.win/raw?url=https://raw.githubusercontent.com/PhonePe/pulse/master/data";
+const GITHUB_BASE = "https://raw.githubusercontent.com/PhonePe/pulse/master/data";
+const corsUrl = (path) => `https://api.allorigins.win/raw?url=${encodeURIComponent(GITHUB_BASE + path)}`;
 const INDIA_GEO  = "https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/india.geojson";
 
 // ── State slug map for district drill-down ───────────────────────────────────
@@ -74,7 +75,7 @@ export default function App() {
   const fetchState = useCallback(async (y, q) => {
     setLoading(true); setError(null); setSelected(null); setDistData(null);
     try {
-      const url = `${GITHUB_RAW}/map/transaction/hover/country/india/${y}/${q}.json`;
+      const url = corsUrl(`/map/transaction/hover/country/india/${y}/${q}.json`);
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Data not available for ${y} Q${q}`);
       const json = await res.json();
@@ -98,7 +99,7 @@ export default function App() {
     const slug = STATE_SLUG[pulse]; if (!slug) return;
     setDistLoading(true);
     try {
-      const url = `${GITHUB_RAW}/map/transaction/hover/country/india/state/${slug}/${y}/${q}.json`;
+      const url = corsUrl(`/map/transaction/hover/country/india/state/${slug}/${y}/${q}.json`);
       const res = await fetch(url);
       if (!res.ok) { setDistData(null); return; }
       const json = await res.json();
